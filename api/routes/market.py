@@ -5,7 +5,7 @@ from config.settings import settings
 
 router = APIRouter(prefix="/market", tags=["market"])
 
-@router.get("/get")
+@router.post("/get")
 def get_market_data(request: MarketDataRequest):
     base_url = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
     params = {

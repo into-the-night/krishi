@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from fastapi import File, UploadFile
 from datetime import datetime
 
 class MarketDataRequest(BaseModel):
@@ -14,11 +13,6 @@ class MarketDataRequest(BaseModel):
     
 class ChatRequest(BaseModel):
     message: str
-    language: str = "en"
-    user_id: str
-
-class ImageDetectionRequest(BaseModel):
-    image: UploadFile = File(...)
     language: str = "en"
     user_id: str
 

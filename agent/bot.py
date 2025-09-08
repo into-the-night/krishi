@@ -13,7 +13,7 @@ class Bot:
         Analyse the output from a plant disease and pest detection model and provide a detailed analysis of the plant disease and/or pest to a farmer in a friendly and easy to understand manner.
         """
         disease_predictions = diagnosis_result[0]['model_1_predictions']['predictions']
-        pest_predictions = diagnosis_result[0]['predictions']
+        pest_predictions = diagnosis_result[0]['predictions']['predictions']
 
         prompt = f"""You are a farming expert that has knowledge about varios plant diseases.
         You are given an output from a plant disease and pest detection model, along with the input image.
