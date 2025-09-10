@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query
 from agent.bot import Bot
 from lib.redis import Redis
 from api.models.requests import ChatRequest
+from api.models.responses import ChatMessageResponse, ChatHistoryResponse, ChatClearResponse
 from typing import Dict, List
 from fastapi import UploadFile, File
 import io
@@ -11,8 +12,8 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 bot = Bot()
 redis_client = Redis()
 
-@router.post("/message")
-def chat(request: ChatRequest) -> Dict:
+@router.post("/message", response_model=ChatMessageResponse)
+def chat(request: ChatRequest) -> ChatMessageResponse:
     # Add user message to history
     user_message = {
         "role": "user",
@@ -30,24 +31,25 @@ def chat(request: ChatRequest) -> Dict:
     }
     redis_client.add_message(request.user_id, assistant_message)
     
-    return {
-        "response": response,
-        "user_id": request.user_id
-    }
+    return ChatMessageResponse(
+        response=response,
+        user_id=request.user_id
+    )
 
-@router.get("/history/{user_id}")
-def get_chat_history(user_id: str, limit: int = Query(default=None)) -> Dict:
+@router.get("/history/{user_id}", response_model=ChatHistoryResponse)
+def get_chat_history(user_id: str, limit: int = Query(default=None)) -> ChatHistoryResponse:
     """Get chat history for a user"""
     if limit:
         messages = redis_client.get_recent_messages(user_id, limit=limit)
     else:
         messages = redis_client.get_chat_history(user_id)
     
-    return {
-        "user_id": user_id,
-        "messages": messages,
-        "count": len(messages)
-    }
+    return ChatHistoryResponse(
+        user_id=user_id,
+        messages=messages,
+        count=len(messages)
+    )
+
 
 @router.post("/voice")
 async def voice_chat(user_id: str, language: str | None, audio: UploadFile = File(...)):
@@ -62,11 +64,11 @@ async def voice_chat(user_id: str, language: str | None, audio: UploadFile = Fil
         "user_audio_url": result["user_audio_url"]
     }
 
-@router.delete("/delete/{user_id}")
-def clear_chat_history(user_id: str) -> Dict:
+@router.delete("/delete/{user_id}", response_model=ChatClearResponse)
+def clear_chat_history(user_id: str) -> ChatClearResponse:
     """Clear chat history for a user"""
     redis_client.clear_chat_history(user_id)
-    return {
-        "user_id": user_id,
-        "message": "Chat history cleared successfully"
-    }
+    return ChatClearResponse(
+        user_id=user_id,
+        message="Chat history cleared successfully"
+    )

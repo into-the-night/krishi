@@ -4,6 +4,7 @@ from config.settings import settings
 import requests
 import time
 from lib.db import audio_to_supabase
+import json
 
 client = Client(api_key=settings.gemini_api_key,)
 
@@ -18,7 +19,7 @@ class Bot:
         """
         Analyse the output from a plant disease and pest detection model and provide a detailed analysis of the plant disease and/or pest and ways to cure the disease and pest to a farmer in a friendly and easy to understand manner.
         """
-        disease_predictions = diagnosis_result[0]['model_1_predictions']['predictions']
+        disease_predictions = diagnosis_result[0]['model_2_predictions']['predictions']
         pest_predictions = diagnosis_result[0]['predictions']['predictions']
 
         prompt = f"""You are a farming expert that has knowledge about various plant diseases.
@@ -132,3 +133,106 @@ class Bot:
             contents=[prompt]
         )
         return response.text
+
+    def translate_market_data(self, records: list, language: str = "hindi"):
+        """
+        Translate market data records to the given language.
+        """
+        prompt = f"""You are a translation expert that has knowledge about various languages.
+        You are given market data records that need to be translated.
+        You MUST translate ONLY the values of these specific fields to {language}:
+        - state
+        - district  
+        - market
+        - commodity
+        - variety
+        - grade
+        
+        DO NOT translate field names, dates, or prices.
+        Return the data as valid JSON array maintaining the exact same structure.
+        
+        The market data is:
+        {json.dumps(records, ensure_ascii=False)}
+        
+        Return ONLY the JSON array, no additional text or explanation.
+        """
+        
+        try:
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt]
+            )
+            
+            # Clean the response text to ensure it's valid JSON
+            response_text = response.text.strip()
+            # Remove markdown code blocks if present
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+            
+            return json.loads(response_text)
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            print(f"Response text: {response.text}")
+            # Return original records if translation fails
+            return records
+        except Exception as e:
+            print(f"Translation error: {e}")
+            # Return original records if any error occurs
+            return records
+
+    def translate_weather_data(self, weather_data: dict, language: str = "hindi"):
+        """
+        Translate weather data to the given language.
+        """
+        prompt = f"""You are a translation expert that has knowledge about various languages.
+        You are given weather data that need to be translated.
+        You MUST translate ONLY the values of these specific fields to {language}:
+        All the numerical values and text values in the weather data.
+        """
+        prompt += f"""
+        The weather data is:
+        {json.dumps(weather_data, ensure_ascii=False)}
+        """
+        try:
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                    contents=[prompt]
+                )
+            # Clean the response text to ensure it's valid JSON
+            response_text = response.text.strip()
+            # Remove markdown code blocks if present
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+            return json.loads(response_text)  
+        except Exception as e:
+            print(f"Translation error: {e}")
+            return weather_data
+        
+    def translate_content(self, content: str, language: str = "hindi"):
+        """
+        Translate content to the given language.
+        """
+        prompt = f"""You are a translation expert that has knowledge about various languages.
+        You are given content that need to be translated.
+        The content MUST be in the following language: {language}.
+        """
+        prompt += f"""
+        The content is:
+        {content}
+        """
+        try:
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt]
+            )
+            response_text = response.text.strip()
+            return response_text
+        except Exception as e:
+            print(f"Translation error: {e}")
+            return content
