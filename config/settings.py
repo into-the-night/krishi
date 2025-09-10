@@ -15,5 +15,6 @@ class Settings(BaseSettings):
     supabase_key: str = Field(...)
     firebase_credentials_path: str = Field("firebase-creds.json")
     celery_broker_url: str = Field("redis://localhost:6379/0")
+    deepgram_api_key: str = Field(...)
 
 settings = Settings()

@@ -3,6 +3,8 @@ from agent.bot import Bot
 from lib.redis import Redis
 from api.models.requests import ChatRequest
 from typing import Dict, List
+from fastapi import UploadFile, File
+import io
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -45,6 +47,19 @@ def get_chat_history(user_id: str, limit: int = Query(default=None)) -> Dict:
         "user_id": user_id,
         "messages": messages,
         "count": len(messages)
+    }
+
+@router.post("/voice")
+async def voice_chat(user_id: str, language: str | None, audio: UploadFile = File(...)):
+    """voice chatting with the bot where the user uploads audio and bot replies with text and audio"""
+    audio_bytes = await audio.read()
+    result = bot.voice_chat(audio_bytes, user_id=user_id, mimetype=audio.content_type, language=language)
+    return {
+        "user_id": user_id,
+        "user_query": result["user_query"],
+        "bot_reply": result["bot_reply"],
+        "bot_audio_url": result["bot_audio_url"],
+        "user_audio_url": result["user_audio_url"]
     }
 
 @router.delete("/delete/{user_id}")
