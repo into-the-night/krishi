@@ -32,3 +32,20 @@ class Crop(BaseModel):
     planted_at: datetime
     previous_crop: str
     previous_crop_yield: str
+
+class Post(BaseModel):
+    id: str
+    user_id: str
+    content_url: str
+    content_desc: str
+    likes: int
+    reports: int
+    created_at: datetime
+    comment_ids: list[str] = []
+
+class Comment(BaseModel):
+    id: str
+    user_id: str
+    content: str
+    likes: int
+    created_at: datetime
