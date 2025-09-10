@@ -35,8 +35,8 @@ async def image_detection(
     try:
         # Run the workflow with the file path
         result = client.run_workflow(
-            workspace_name="SIH",
-            workflow_id="sih-w2pzs",
+            workspace_name="sih-n7y20",
+            workflow_id="plant-and-disease-workflow",
             images={
                 "image": tmp_file_path
             },
