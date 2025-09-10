@@ -10,6 +10,7 @@ class MarketDataRequest(BaseModel):
     variety: str = ""
     grade: str = ""
     offset: int = 0
+    language: str = "en"
     
 class ChatRequest(BaseModel):
     message: str

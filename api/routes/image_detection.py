@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, UploadFile, Form
 from inference_sdk import InferenceHTTPClient
 from config.settings import settings
 from agent.bot import Bot
+from api.models.responses import ImageDetectionResponse
 import tempfile
 import os
 
@@ -14,12 +15,12 @@ client = InferenceHTTPClient(
 router = APIRouter(prefix="/image_detection", tags=["image_detection"])
 bot = Bot()
 
-@router.post("/detect")
+@router.post("/detect", response_model=ImageDetectionResponse)
 async def image_detection(
     image: UploadFile = File(...),
     language: str = Form("en"),
     user_id: str = Form(...)
-):
+) -> ImageDetectionResponse:
     # Read the image content
     image_content = await image.read()
     
@@ -46,7 +47,11 @@ async def image_detection(
         # Analyse the output
         analysis = bot.analyse_output(result, tmp_file_path, language)
         
-        return analysis
+        return ImageDetectionResponse(
+            analysis=analysis,
+            language=language,
+            user_id=user_id
+        )
     finally:
         # Clean up the temporary file
         if os.path.exists(tmp_file_path):
