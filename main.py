@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.routes import farmer, chat, market, image_detection, weather, crops
+from api.routes import farmer, chat, market, image_detection, weather, crops, posts, comments
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -17,6 +17,8 @@ app.include_router(market.router)
 app.include_router(image_detection.router)
 app.include_router(weather.router)
 app.include_router(crops.router)
+app.include_router(posts.router)
+app.include_router(comments.router)
 
 @app.get("/")
 def read_root():

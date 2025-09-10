@@ -42,3 +42,20 @@ class CreateCropRequest(BaseModel):
     state: str
     district: str
     fcm_key: str
+
+class CreatePostRequest(BaseModel):
+    user_id: str
+    content_url: str
+    content_desc: str
+
+class LikeDislikePostRequest(BaseModel):
+    post_id: str
+
+class CreateCommentRequest(BaseModel):
+    post_id: str
+    user_id: str
+    content: str
+
+class DeleteCommentRequest(BaseModel):
+    comment_id: str
+    user_id: str

@@ -1,6 +1,6 @@
 from supabase import create_client
 from config.settings import settings
-from lib.models import Location, Farmer, Crop, Farm
+from lib.models import Location, Farmer, Crop, Farm, Post, Comment
 from lib.firebase import subscribe_to_topic
 from datetime import datetime
 from uuid import uuid4
@@ -145,4 +145,142 @@ async def get_crops(farmer_id: str):
         if not crops.data:
             return
     return [Crop(**crop) for crop in crops.data]
+
+async def create_post(
+    user_id: str,
+    content_url: str,
+    content_desc: str,
+):
+    post = supabase.table("posts").insert({
+        "id": str(uuid4()),
+        "user_id": user_id,
+        "content_url": content_url,
+        "content_desc": content_desc,
+        "likes": 0,
+        "reports": 0,
+        "comment_ids": [],
+    }).execute()
+    if not post.data:
+        return
+    return Post(**post.data[0])
+
+async def delete_post(post_id: str, user_id: str):
+    # First check if the post belongs to the user
+    post = supabase.table("posts").select("*").eq("id", post_id).eq("user_id", user_id).execute()
+    if not post.data:
+        return False
+    
+    # Delete the post
+    result = supabase.table("posts").delete().eq("id", post_id).execute()
+    return True if result.data else False
+
+async def get_all_posts(limit: int = 50, offset: int = 0):
+    posts = supabase.table("posts").select("*").order("created_at", desc=True).limit(limit).offset(offset).execute()
+    if not posts.data:
+        return []
+    return [Post(**post) for post in posts.data]
+
+async def like_post(post_id: str):
+    # Get current likes count
+    post = supabase.table("posts").select("likes").eq("id", post_id).execute()
+    if not post.data:
+        return False  # Post not found
+    
+    current_likes = post.data[0]["likes"]
+    # Increment likes count
+    result = supabase.table("posts").update({"likes": current_likes + 1}).eq("id", post_id).execute()
+    return True if result.data else False
+
+async def dislike_post(post_id: str):
+    # Get current likes count
+    post = supabase.table("posts").select("likes").eq("id", post_id).execute()
+    if not post.data:
+        return False  # Post not found
+    
+    current_likes = post.data[0]["likes"]
+    # Decrement likes count (but not below 0)
+    result = supabase.table("posts").update({"likes": max(0, current_likes - 1)}).eq("id", post_id).execute()
+    return True if result.data else False
+
+# Comment-related functions
+async def create_comment(post_id: str, user_id: str, content: str):
+    try:
+        # First check if post exists
+        post = supabase.table("posts").select("comment_ids").eq("id", post_id).execute()
+        if not post.data:
+            return None  # Post not found
+        
+        # Create the comment
+        comment_data = {
+            "user_id": user_id,
+            "content": content,
+            "likes": 0,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        comment_result = supabase.table("comments").insert(comment_data).execute()
+        if not comment_result.data:
+            return None
+        
+        comment = comment_result.data[0]
+        comment_id = comment["id"]
+        
+        # Update the post's comment_ids array
+        current_comment_ids = post.data[0]["comment_ids"] or []
+        current_comment_ids.append(comment_id)
+        
+        supabase.table("posts").update({"comment_ids": current_comment_ids}).eq("id", post_id).execute()
+        
+        return Comment(**comment)
+    except Exception as e:
+        print(f"Error creating comment: {e}")
+        return None
+
+async def delete_comment(comment_id: str, user_id: str):
+    try:
+        # First check if comment exists and belongs to user
+        comment = supabase.table("comments").select("*").eq("id", comment_id).eq("user_id", user_id).execute()
+        if not comment.data:
+            return False  # Comment not found or not owned by user
+        
+        # Find the post that contains this comment
+        posts = supabase.table("posts").select("id, comment_ids").contains("comment_ids", [comment_id]).execute()
+        
+        if posts.data:
+            for post in posts.data:
+                # Remove comment_id from the post's comment_ids array
+                updated_comment_ids = [cid for cid in post["comment_ids"] if cid != comment_id]
+                supabase.table("posts").update({"comment_ids": updated_comment_ids}).eq("id", post["id"]).execute()
+        
+        # Delete the comment
+        result = supabase.table("comments").delete().eq("id", comment_id).eq("user_id", user_id).execute()
+        return True if result.data else False
+    except Exception as e:
+        print(f"Error deleting comment: {e}")
+        return False
+
+async def get_comments_for_post(post_id: str, limit: int = 50, offset: int = 0):
+    try:
+        # Get comment IDs from the post
+        post = supabase.table("posts").select("comment_ids").eq("id", post_id).execute()
+        if not post.data or not post.data[0]["comment_ids"]:
+            return []
+        
+        comment_ids = post.data[0]["comment_ids"]
+        
+        # Fetch comments by IDs, ordered by creation date
+        for comment_id in comment_ids:
+            comments = supabase.table("comments")\
+                .select("*")\
+                    .eq("id", comment_id)\
+                    .order("created_at", desc=True)\
+                .execute()
+        
+        if not comments.data:
+            return []
+        
+        return [Comment(**comment) for comment in comments.data]
+    except Exception as e:
+        print(f"Error fetching comments: {e}")
+        return []
     
