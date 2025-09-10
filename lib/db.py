@@ -55,6 +55,7 @@ async def create_farm(
     size: float,
     district: str,
     state: str,
+    block: str,
     fcm_key: str,
 ):
     farm = supabase.table("farms").insert({
