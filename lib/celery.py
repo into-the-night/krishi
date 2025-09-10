@@ -30,7 +30,7 @@ def check_weather_alerts():
 
         for location in locations:
             # Fetch weather data
-            weather_url = f"http://api.weatherapi.com/v1/alerts.json?q={location.district},{location.state}"
+            weather_url = f"http://api.weatherapi.com/v1/alerts.json?key={settings.weather_api_key}&q={location.district},{location.state}"
             
             with httpx.Client() as client:
                 response = client.get(weather_url)
