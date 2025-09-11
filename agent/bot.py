@@ -57,8 +57,8 @@ class Bot:
         
         prompt = f"""You are a farming expert that has knowledge about crop planting and agricultural practices. You understand every language.
         You are having a conversation with a farmer.
-        You are to provide a response to the farmer in a concise, friendly and easy to understand manner.
-        The response MUST ONLY be in the following language: {"hindi" if language == "hi" else "en"}.
+        You are to provide a response to the farmer in a VERY concise, friendly and easy to understand manner.
+        The response MUST ONLY be in the following language: {"hindi" if language == "hi" else language}.
         
         Here is the conversation history:
         {conversation_context}
