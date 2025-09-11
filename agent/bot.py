@@ -10,14 +10,17 @@ from deepgram import (
 )
 from config.settings import settings
 from lib.db import audio_to_supabase
+from lib.redis import Redis
 
 client = Client(api_key=settings.gemini_api_key)
 deepgram_client = DeepgramClient(api_key=settings.deepgram_api_key)
+redis_client = Redis()
 
 class Bot:
     def __init__(self):
         self.client = client
         self.deepgram_client = deepgram_client
+        self.redis_client = redis_client
 
     def analyse_output(self, diagnosis_result, image: Image, language: str = "en"):
         """
@@ -110,8 +113,12 @@ class Bot:
     def voice_chat(self, audio_bytes: bytes, user_id: str, language: str="en"):
         """chat using voice input and output."""
         user_text = self.speech_to_text(audio_bytes, language)
-        
-        history = [{"role": "user", "content": user_text}]
+        user_message = {
+            "role": "user",
+            "content": user_text
+        }
+        self.redis_client.add_message(user_id, user_message)
+        history = self.redis_client.get_recent_messages(user_id, limit=10)
         reply_text = self.chat(history, language)
 
         # reply_audio = self.text_to_speech(reply_text)
