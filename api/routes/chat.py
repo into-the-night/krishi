@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Form
 from agent.bot import Bot
 from lib.redis import Redis
 from api.models.requests import ChatRequest
@@ -52,16 +52,20 @@ def get_chat_history(user_id: str, limit: int = Query(default=None)) -> ChatHist
 
 
 @router.post("/voice")
-async def voice_chat(user_id: str, language: str | None, audio: UploadFile = File(...)):
+async def voice_chat(
+    audio: UploadFile = File(...),
+    user_id: str = Form(...),
+    language: str = Form(default="en", examples=["en", "hi"])
+):
     """voice chatting with the bot where the user uploads audio and bot replies with text and audio"""
     audio_bytes = await audio.read()
-    result = bot.voice_chat(audio_bytes, user_id=user_id, mimetype=audio.content_type, language=language)
+    result = bot.voice_chat(audio_bytes, user_id=user_id, language=language)
     return {
         "user_id": user_id,
         "user_query": result["user_query"],
         "bot_reply": result["bot_reply"],
-        "bot_audio_url": result["bot_audio_url"],
-        "user_audio_url": result["user_audio_url"]
+        "bot_audio_url": result.get("bot_audio_url", None),
+        "user_audio_url": result.get("user_audio_url", None)
     }
 
 @router.delete("/delete/{user_id}", response_model=ChatClearResponse)

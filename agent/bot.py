@@ -1,19 +1,23 @@
-from google.genai import Client
-from PIL import Image
-from config.settings import settings
-import requests
-import time
-from lib.db import audio_to_supabase
 import json
+import time
+import requests
+from PIL import Image
+from google.genai import Client
+from deepgram import (
+    DeepgramClient,
+    PrerecordedOptions,
+    FileSource,
+)
+from config.settings import settings
+from lib.db import audio_to_supabase
 
-client = Client(api_key=settings.gemini_api_key,)
+client = Client(api_key=settings.gemini_api_key)
+deepgram_client = DeepgramClient(api_key=settings.deepgram_api_key)
 
 class Bot:
     def __init__(self):
         self.client = client
-        self.deepgram_api_key = settings.deepgram_api_key
-        self.stt_url = "https://api.deepgram.com/v1/listen"
-        self.tts_url = "https://api.deepgram.com/v1/speak"
+        self.deepgram_client = deepgram_client
 
     def analyse_output(self, diagnosis_result, image: Image, language: str = "en"):
         """
@@ -22,11 +26,11 @@ class Bot:
         disease_predictions = diagnosis_result[0]['model_2_predictions']['predictions']
         pest_predictions = diagnosis_result[0]['predictions']['predictions']
 
-        prompt = f"""You are a farming expert that has knowledge about various plant diseases.
+        prompt = f"""You are a farming expert that has knowledge about various pests and plant diseases.
         You are given an output from a plant disease and pest detection model, along with the input image.
         You need to do the following-
-        1.examine the result and provide a detailed analysis of the plant disease and/or pest to a farmer,
-        2.Provide a few economical ways to cure the disease and/or pest.
+        1. Examine the result and provide a concise (MAX 100 words) detailed analysis of the plant disease and/or pest to a farmer,
+        2. Provide a few economical ways to cure the disease and/or pest.
         respond in a concise and easy to understand manner.
         The analysis MUST be in the following language {language}. 
         The model result is as follows:
@@ -51,10 +55,10 @@ class Bot:
                 content = msg.get('content', '')
                 conversation_context += f"{role.capitalize()}: {content}\n\n"
         
-        prompt = f"""You are a farming expert that has knowledge about crop planting and agricultural practices.
+        prompt = f"""You are a farming expert that has knowledge about crop planting and agricultural practices. You understand every language.
         You are having a conversation with a farmer.
-        You are to provide a response to the farmer in a  Concise, friendly and easy to understand manner.
-        The response MUST be in the following language: {language}.
+        You are to provide a response to the farmer in a concise, friendly and easy to understand manner.
+        The response MUST ONLY be in the following language: {"hindi" if language == "hi" else "en"}.
         
         Here is the conversation history:
         {conversation_context}
@@ -63,25 +67,33 @@ class Bot:
         """
         
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[prompt]
         )
         return response.text
     
     #stt
-    def speech_to_text(self, audio_bytes: bytes, mimetype: str = "audio/wav", language: str = None) -> str:
+    def speech_to_text(self, audio_bytes: bytes, language: str = "en") -> str:
         """convert speech to text using deepgram STT."""
-        headers = {
-            "Authorization": f"Token {self.deepgram_api_key}",
-            "Content-Type": mimetype
+        payload: FileSource = {
+            "buffer": audio_bytes,
         }
-        params = {"model": "nova-2"}
-        if language:
-            params["language"]= language 
-        response = requests.post(self.stt_url, headers=headers,params=params, data=audio_bytes)
-        response.raise_for_status()
-        data = response.json()
-        return data["results"]["channels"][0]["alternatives"][0]["transcript"]
+        if language in ["hindi", "hi"]:
+            language = "hi"
+        elif language in ["english", "en"]:
+            language = "en"
+        else:
+            return "Sorry I don't understand your language."
+        response = self.deepgram_client.listen.rest.v("1").transcribe_file(
+            source=payload,
+            options=PrerecordedOptions(
+                model="nova-2",
+                smart_format=True,
+                language=language,
+            )
+        )
+        data = response.results.channels[0].alternatives[0].transcript
+        return data
     
     #tts
     def text_to_speech(self, text: str, model: str = "aura-2-thalia-en") -> bytes:
@@ -95,27 +107,26 @@ class Bot:
         resp.raise_for_status()
         return resp.content
     
-    def voice_chat(self, audio_bytes:bytes, user_id:str, mimetype: str= "audio/wav", language: str="en-US"):
+    def voice_chat(self, audio_bytes: bytes, user_id: str, language: str="en"):
         """chat using voice input and output."""
-        user_text = self.speech_to_text(audio_bytes, mimetype, language)
+        user_text = self.speech_to_text(audio_bytes, language)
         
         history = [{"role": "user", "content": user_text}]
         reply_text = self.chat(history, language)
 
-        reply_audio = self.text_to_speech(reply_text)
+        # reply_audio = self.text_to_speech(reply_text)
 
         #saving audio to supabase
-        user_audio_url= audio_to_supabase(audio_bytes, f"{user_id}_input_{int(time.time())}.wav", mimetype)
-        bot_audio_url = audio_to_supabase(reply_audio, f"{user_id}_reply_{int(time.time())}.mp3", "audio/mpeg")
+        # user_audio_url= audio_to_supabase(audio_bytes, f"{user_id}_input_{int(time.time())}.wav", mimetype)
+        # bot_audio_url = audio_to_supabase(reply_audio, f"{user_id}_reply_{int(time.time())}.mp3", "audio/mpeg")
 
 
         return{
             "user_query": user_text,
             "bot_reply": reply_text,
-            "user_audio_url": user_audio_url,
-            "bot_audio_url": bot_audio_url,
+            "user_audio_url": None,
+            "bot_audio_url": None,
         }
-
 
     def create_notification_message(self, alert_data: dict, language: str = "en"):
         """
