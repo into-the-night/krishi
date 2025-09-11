@@ -1,13 +1,19 @@
 from google.genai import Client
 from PIL import Image
 from config.settings import settings
+import requests
+import time
+from lib.db import audio_to_supabase
 import json
 
-client = Client(api_key=settings.gemini_api_key)
+client = Client(api_key=settings.gemini_api_key,)
 
 class Bot:
     def __init__(self):
         self.client = client
+        self.deepgram_api_key = settings.deepgram_api_key
+        self.stt_url = "https://api.deepgram.com/v1/listen"
+        self.tts_url = "https://api.deepgram.com/v1/speak"
 
     def analyse_output(self, diagnosis_result, image: Image, language: str = "en"):
         """
@@ -22,7 +28,7 @@ class Bot:
         1.examine the result and provide a detailed analysis of the plant disease and/or pest to a farmer,
         2.Provide a few economical ways to cure the disease and/or pest.
         respond in a concise and easy to understand manner.
-        The analsysi MUST be in the following language {language}. 
+        The analysis MUST be in the following language {language}. 
         The model result is as follows:
         Disease Model Predictions: {[f"{disease_prediction.get('class')} with confidence {disease_prediction.get('confidence')}" for disease_prediction in disease_predictions]}
         Pest Model Predictions: {[f"{pest_prediction.get('class')} with confidence {pest_prediction.get('confidence')}" for pest_prediction in pest_predictions]}
@@ -61,6 +67,55 @@ class Bot:
             contents=[prompt]
         )
         return response.text
+    
+    #stt
+    def speech_to_text(self, audio_bytes: bytes, mimetype: str = "audio/wav", language: str = None) -> str:
+        """convert speech to text using deepgram STT."""
+        headers = {
+            "Authorization": f"Token {self.deepgram_api_key}",
+            "Content-Type": mimetype
+        }
+        params = {"model": "nova-2"}
+        if language:
+            params["language"]= language 
+        response = requests.post(self.stt_url, headers=headers,params=params, data=audio_bytes)
+        response.raise_for_status()
+        data = response.json()
+        return data["results"]["channels"][0]["alternatives"][0]["transcript"]
+    
+    #tts
+    def text_to_speech(self, text: str, model: str = "aura-2-thalia-en") -> bytes:
+        """convert text to speech audio using deepgram TTS."""
+        headers = {
+            "Authorization": f"Token {self.deepgram_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {"text": text}
+        resp = requests.post(f"{self.tts_url}?model={model}", headers=headers, json=payload)
+        resp.raise_for_status()
+        return resp.content
+    
+    def voice_chat(self, audio_bytes:bytes, user_id:str, mimetype: str= "audio/wav", language: str="en-US"):
+        """chat using voice input and output."""
+        user_text = self.speech_to_text(audio_bytes, mimetype, language)
+        
+        history = [{"role": "user", "content": user_text}]
+        reply_text = self.chat(history, language)
+
+        reply_audio = self.text_to_speech(reply_text)
+
+        #saving audio to supabase
+        user_audio_url= audio_to_supabase(audio_bytes, f"{user_id}_input_{int(time.time())}.wav", mimetype)
+        bot_audio_url = audio_to_supabase(reply_audio, f"{user_id}_reply_{int(time.time())}.mp3", "audio/mpeg")
+
+
+        return{
+            "user_query": user_text,
+            "bot_reply": reply_text,
+            "user_audio_url": user_audio_url,
+            "bot_audio_url": bot_audio_url,
+        }
+
 
     def create_notification_message(self, alert_data: dict, language: str = "en"):
         """

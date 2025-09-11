@@ -284,3 +284,11 @@ async def get_comments_for_post(post_id: str, limit: int = 50, offset: int = 0):
         print(f"Error fetching comments: {e}")
         return []
     
+def audio_to_supabase(audio_bytes:bytes, filename:str, content_type:str= "audio/mpeg") -> str:
+    """save audio to supabase and return a url"""
+    bucket = "krishi"
+    res = supabase.storage.from_(bucket).upload(filename,audio_bytes,{"content-type": content_type})
+    if res.is_error:
+        raise Exception(f"error uploading to supabase:{res.error}")
+
+    return supabase.storage.from_(bucket).get_public_url(filename)

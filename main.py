@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from api.routes import farmer, chat, market, image_detection, weather, crops, posts, comments
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,5 +22,5 @@ app.include_router(posts.router)
 app.include_router(comments.router)
 
 @app.get("/")
-def read_root():
-    return {"message": "Hello, World!"}
+async def root():
+    return RedirectResponse(url="/docs")
