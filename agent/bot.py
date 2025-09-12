@@ -29,17 +29,37 @@ class Bot:
         disease_predictions = diagnosis_result[0]['model_2_predictions']['predictions']
         pest_predictions = diagnosis_result[0]['predictions']['predictions']
 
-        prompt = f"""You are a farming expert that has knowledge about various pests and plant diseases.
-        You are given an output from a plant disease and pest detection model, along with the input image.
-        You need to do the following-
-        1. Examine the result and provide a concise (MAX 100 words) detailed analysis of the plant disease and/or pest to a farmer,
-        2. Provide a few economical ways to cure the disease and/or pest.
-        respond in a concise and easy to understand manner.
-        The analysis MUST be in the following language {language}. 
-        The model result is as follows:
-        Disease Model Predictions: {[f"{disease_prediction.get('class')} with confidence {disease_prediction.get('confidence')}" for disease_prediction in disease_predictions]}
-        Pest Model Predictions: {[f"{pest_prediction.get('class')} with confidence {pest_prediction.get('confidence')}" for pest_prediction in pest_predictions]}
-        """
+        prompt = f"""
+You are an experienced agricultural advisor with deep knowledge of plant pathology, entomology, and crop management. 
+You are given:
+1. The output of a plant disease and pest detection model, 
+2. The input image of the affected crop.
+
+Your task is to provide a structured, practical advisory for a small farmer:
+
+### 1. Diagnosis
+- Identify the most likely disease(s) and/or pest(s) from the model predictions.
+- Briefly describe how this problem affects the crop (symptoms, spread, impact on yield).
+- Be concise but accurate. Limit this section to ~120 words.
+
+### 2. Treatment & Recommendations
+- Recommend **specific, economical control measures**.
+- If chemicals are suitable:
+  - Mention the **chemical name**, **formulation**, and **safe dilution ratio** (e.g., "Mix 2 ml of Imidacloprid 17.8% SL per liter of water").
+  - Provide dosage instructions as well as the method which is to be used to apply the treatment(e.g., foliar spray, soil drench).
+  - Include **safety precautions** (e.g., PPE, re-entry intervals).
+- If non-chemical or integrated pest management (IPM) options exist:
+  - Suggest the most effective and low-cost alternatives (e.g., neem extract, cultural practices, resistant varieties).
+- Always prioritize **cost-effective, safe, and sustainable measures** for small farmers.
+
+### 3. Language
+- The entire response MUST ONLY be in {"hindi" if language == "hi" else language}, simple and farmer-friendly.
+
+Model Results for Reference:
+- Disease Model Predictions: {[f"{disease_prediction.get('class')} with confidence {disease_prediction.get('confidence')}" for disease_prediction in disease_predictions]}
+- Pest Model Predictions: {[f"{pest_prediction.get('class')} with confidence {pest_prediction.get('confidence')}" for pest_prediction in pest_predictions]}
+"""
+
         image = Image.open(image)
         response = self.client.models.generate_content(
             model="gemini-2.0-flash",
