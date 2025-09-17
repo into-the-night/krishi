@@ -53,12 +53,12 @@ async def image_detection(
 
         # Upload image to Supabase using a valid key
         file_id = f"uploads/{user_id}_{uuid.uuid4()}{file_extension}"
-        public_url = save_to_supabase(tmp_file_path, file_id, content_type="image/jpeg")
+        response = save_to_supabase(tmp_file_path, file_id, content_type="image/jpeg")
 
-        if public_url:
+        if response:
             user_message = {
                 "role": "user",
-                "content": f"file:{public_url}"
+                "content": f"file:{file_id}"
             }
             assistant_message = {
                 "role": "assistant",

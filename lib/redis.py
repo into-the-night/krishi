@@ -14,16 +14,18 @@ class Redis:
 
     def add_message(self, user_id: str, message: Dict) -> None:
         """Add a message to user's chat history"""
-        # Add timestamp if not present
-        if 'timestamp' not in message:
-            message['timestamp'] = datetime.utcnow().isoformat()
-        
+        now = datetime.utcnow().isoformat()
         # Get existing history
         history = self.get_chat_history(user_id)
         
         if isinstance(message, list):
+            for msg in message:
+                if 'timestamp' not in msg:
+                    msg['timestamp'] = now
             history.extend(message)
         else:
+            if 'timestamp' not in message:
+                message['timestamp'] = now
             history.append(message)
         
         # Store back to Redis

@@ -5,7 +5,7 @@ from lib.firebase import subscribe_to_topic
 from datetime import datetime
 from uuid import uuid4
 
-supabase = create_client(settings.supabase_uri, settings.supabase_key)
+supabase = create_client(settings.supabase_uri, settings.supabase_service_key)
 
 def get_supabase():
     return supabase
@@ -302,7 +302,6 @@ def save_to_supabase(file_path: str, file_id: str, content_type: str) -> str:
                 file_options={"cache-control": "3600", "upsert": "false", "content-type": content_type},
             )
         )
-    if response.is_error:
-        return False
-
+    if not response:
+        return
     return True

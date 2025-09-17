@@ -45,6 +45,7 @@ def get_chat_history(user_id: str, limit: int = Query(default=None)) -> ChatHist
     else:
         messages = redis_client.get_chat_history(user_id)
 
+    # Convert any file: URLs to signed URLs
     for message in messages:
         if message['content'].startswith("file:"):
             file_path = message['content'][5:]
@@ -59,7 +60,7 @@ def get_chat_history(user_id: str, limit: int = Query(default=None)) -> ChatHist
                 )
                 message['content'] = response['signedURL']
             except:
-                message['content'] = "Image"
+                message['content'] = "Content failed to load..."
     
     return ChatHistoryResponse(
         user_id=user_id,
