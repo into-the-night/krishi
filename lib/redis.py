@@ -20,7 +20,11 @@ class Redis:
         
         # Get existing history
         history = self.get_chat_history(user_id)
-        history.append(message)
+        
+        if isinstance(message, list):
+            history.extend(message)
+        else:
+            history.append(message)
         
         # Store back to Redis
         self.client.set(f"chat:{user_id}", json.dumps(history))

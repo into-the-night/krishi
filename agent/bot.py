@@ -9,7 +9,7 @@ from deepgram import (
     FileSource,
 )
 from config.settings import settings
-from lib.db import audio_to_supabase
+from lib.db import save_to_supabase
 from lib.redis import Redis
 
 client = Client(api_key=settings.gemini_api_key)
@@ -140,6 +140,12 @@ Model Results for Reference:
         self.redis_client.add_message(user_id, user_message)
         history = self.redis_client.get_recent_messages(user_id, limit=10)
         reply_text = self.chat(history, language)
+
+        assistant_message = {
+            "role": "assistant",
+            "content": reply_text
+        }
+        self.redis_client.add_message(user_id, assistant_message)
 
         # reply_audio = self.text_to_speech(reply_text)
 

@@ -2,8 +2,11 @@ from fastapi import APIRouter, File, UploadFile, Form
 from inference_sdk import InferenceHTTPClient
 from config.settings import settings
 from agent.bot import Bot
+from lib.redis import Redis
+from lib.db import save_to_supabase
 from api.models.responses import ImageDetectionResponse
 import tempfile
+import uuid
 import os
 
 client = InferenceHTTPClient(
@@ -14,6 +17,7 @@ client = InferenceHTTPClient(
 
 router = APIRouter(prefix="/image_detection", tags=["image_detection"])
 bot = Bot()
+redis_client = Redis()
 
 @router.post("/detect", response_model=ImageDetectionResponse)
 async def image_detection(
@@ -43,10 +47,25 @@ async def image_detection(
             },
             use_cache=True # cache workflow definition for 15 minutes
         )
-        
+
         # Analyse the output
         analysis = bot.analyse_output(result, tmp_file_path, language)
-        
+
+        # Upload image to Supabase using a valid key
+        file_id = f"uploads/{user_id}_{uuid.uuid4()}{file_extension}"
+        public_url = save_to_supabase(tmp_file_path, file_id, content_type="image/jpeg")
+
+        if public_url:
+            user_message = {
+                "role": "user",
+                "content": f"file:{public_url}"
+            }
+            assistant_message = {
+                "role": "assistant",
+                "content": analysis
+            }
+            redis_client.add_message(user_id, [user_message, assistant_message])
+
         return ImageDetectionResponse(
             analysis=analysis,
             language=language,

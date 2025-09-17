@@ -3,7 +3,7 @@ from agent.bot import Bot
 from lib.redis import Redis
 from api.models.requests import ChatRequest
 from api.models.responses import ChatMessageResponse, ChatHistoryResponse, ChatClearResponse
-from typing import Dict, List
+from lib.db import get_supabase
 from fastapi import UploadFile, File
 import io
 
@@ -11,6 +11,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 bot = Bot()
 redis_client = Redis()
+supabase = get_supabase()
 
 @router.post("/message", response_model=ChatMessageResponse)
 def chat(request: ChatRequest) -> ChatMessageResponse:
@@ -43,6 +44,22 @@ def get_chat_history(user_id: str, limit: int = Query(default=None)) -> ChatHist
         messages = redis_client.get_recent_messages(user_id, limit=limit)
     else:
         messages = redis_client.get_chat_history(user_id)
+
+    for message in messages:
+        if message['content'].startswith("file:"):
+            file_path = message['content'][5:]
+            try:
+                response = (
+                    supabase.storage
+                    .from_("krishi")
+                    .create_signed_url(
+                        file_path,
+                        360
+                    )
+                )
+                message['content'] = response['signedURL']
+            except:
+                message['content'] = "Image"
     
     return ChatHistoryResponse(
         user_id=user_id,

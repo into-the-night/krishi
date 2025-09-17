@@ -283,12 +283,26 @@ async def get_comments_for_post(post_id: str, limit: int = 50, offset: int = 0):
     except Exception as e:
         print(f"Error fetching comments: {e}")
         return []
-    
-def audio_to_supabase(audio_bytes:bytes, filename:str, content_type:str= "audio/mpeg") -> str:
-    """save audio to supabase and return a url"""
-    bucket = "krishi"
-    res = supabase.storage.from_(bucket).upload(filename,audio_bytes,{"content-type": content_type})
-    if res.is_error:
-        raise Exception(f"error uploading to supabase:{res.error}")
 
-    return supabase.storage.from_(bucket).get_public_url(filename)
+def save_to_supabase(file_path: str, file_id: str, content_type: str) -> str:
+    """Save file to supabase
+    
+    Args:
+        file_path (str): path to the file
+        file_id (str): unique identifier for the file in supabase
+        content_type (str): content type of the file (e.g., "audio/wav" or "image/jpeg") defaults to "text/html"
+    """
+    with open(file_path, "rb") as f:
+        response = (
+            supabase.storage
+            .from_("krishi")
+            .upload(
+                file=f,
+                path=file_id,
+                file_options={"cache-control": "3600", "upsert": "false", "content-type": content_type},
+            )
+        )
+    if response.is_error:
+        return False
+
+    return True
