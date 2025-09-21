@@ -1,4 +1,5 @@
 import os
+import uuid
 from fastapi import APIRouter, Query, Form, Depends, UploadFile, File
 
 from agent.bot import Bot
@@ -105,7 +106,7 @@ async def tts_message(request: TTSRequest) -> TTSResponse:
         # If message is not TTS'd, generate TTS and save to supabase
         audio_file = await bot.text_to_speech(request.message)
 
-        file_path = f"uploads/audio/{request.message_id}_{request.language}.wav"
+        file_path = f"uploads/audio/{str(uuid.uuid4())}_{request.language}.wav"
         await save_to_supabase(audio_file, file_path, content_type="audio/x-wav")
 
         response = await create_presigned_url(file_path)
