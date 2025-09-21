@@ -1,15 +1,14 @@
 import json
-import time
-import requests
+import wave
+import uuid
 from PIL import Image
-from google.genai import Client
+from google.genai import Client, types
 from deepgram import (
     DeepgramClient,
     PrerecordedOptions,
     FileSource,
 )
 from config.settings import settings
-from lib.db import save_to_supabase
 from lib.redis import Redis
 
 client = Client(api_key=settings.gemini_api_key)
@@ -22,7 +21,7 @@ class Bot:
         self.deepgram_client = deepgram_client
         self.redis_client = redis_client
 
-    def analyse_output(self, diagnosis_result, image: Image, language: str = "en"):
+    async def analyse_output(self, diagnosis_result, image: str, language: str = "en"):
         """
         Analyse the output from a plant disease and pest detection model and provide a detailed analysis of the plant disease and/or pest and ways to cure the disease and pest to a farmer in a friendly and easy to understand manner.
         """
@@ -30,44 +29,44 @@ class Bot:
         pest_predictions = diagnosis_result[0]['predictions']['predictions']
 
         prompt = f"""
-You are an experienced agricultural advisor with deep knowledge of plant pathology, entomology, and crop management. 
-You are given:
-1. The output of a plant disease and pest detection model, 
-2. The input image of the affected crop.
+            You are an experienced agricultural advisor with deep knowledge of plant pathology, entomology, and crop management. 
+            You are given:
+            1. The output of a plant disease and pest detection model, 
+            2. The input image of the affected crop.
 
-Your task is to provide a structured, practical advisory for a small farmer:
+            Your task is to provide a structured, practical advisory for a small farmer:
 
-### 1. Diagnosis
-- Identify the most likely disease(s) and/or pest(s) from the model predictions.
-- Briefly describe how this problem affects the crop (symptoms, spread, impact on yield).
-- Be concise but accurate. Limit this section to ~120 words.
+            ### 1. Diagnosis
+            - Identify the most likely disease(s) and/or pest(s) from the model predictions.
+            - Briefly describe how this problem affects the crop (symptoms, spread, impact on yield).
+            - Be concise but accurate. Limit this section to ~120 words.
 
-### 2. Treatment & Recommendations
-- Recommend **specific, economical control measures**.
-- If chemicals are suitable:
-  - Mention the **chemical name**, **formulation**, and **safe dilution ratio** (e.g., "Mix 2 ml of Imidacloprid 17.8% SL per liter of water").
-  - Provide dosage instructions as well as the method which is to be used to apply the treatment(e.g., foliar spray, soil drench).
-  - Include **safety precautions** (e.g., PPE, re-entry intervals).
-- If non-chemical or integrated pest management (IPM) options exist:
-  - Suggest the most effective and low-cost alternatives (e.g., neem extract, cultural practices, resistant varieties).
-- Always prioritize **cost-effective, safe, and sustainable measures** for small farmers.
+            ### 2. Treatment & Recommendations
+            - Recommend **specific, economical control measures**.
+            - If chemicals are suitable:
+            - Mention the **chemical name**, **formulation**, and **safe dilution ratio** (e.g., "Mix 2 ml of Imidacloprid 17.8% SL per liter of water").
+            - Provide dosage instructions as well as the method which is to be used to apply the treatment(e.g., foliar spray, soil drench).
+            - Include **safety precautions** (e.g., PPE, re-entry intervals).
+            - If non-chemical or integrated pest management (IPM) options exist:
+            - Suggest the most effective and low-cost alternatives (e.g., neem extract, cultural practices, resistant varieties).
+            - Always prioritize **cost-effective, safe, and sustainable measures** for small farmers.
 
-### 3. Language
-- The entire response MUST ONLY be in {"hindi" if language == "hi" else language}, simple and farmer-friendly.
+            ### 3. Language
+            - The entire response MUST ONLY be in {"hindi" if language == "hi" else language}, simple and farmer-friendly.
 
-Model Results for Reference:
-- Disease Model Predictions: {[f"{disease_prediction.get('class')} with confidence {disease_prediction.get('confidence')}" for disease_prediction in disease_predictions]}
-- Pest Model Predictions: {[f"{pest_prediction.get('class')} with confidence {pest_prediction.get('confidence')}" for pest_prediction in pest_predictions]}
-"""
+            Model Results for Reference:
+            - Disease Model Predictions: {[f"{disease_prediction.get('class')} with confidence {disease_prediction.get('confidence')}" for disease_prediction in disease_predictions]}
+            - Pest Model Predictions: {[f"{pest_prediction.get('class')} with confidence {pest_prediction.get('confidence')}" for pest_prediction in pest_predictions]}
+            """
 
         image = Image.open(image)
-        response = self.client.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model="gemini-2.0-flash",
             contents=[prompt, image]
         )
         return response.text
 
-    def chat(self, history: list, language: str = "en"):
+    async def chat(self, history: list, language: str = "en"):
         """
         Chat with a bot and provide a response to the farmer in a friendly and easy to understand manner.
         """
@@ -78,24 +77,25 @@ Model Results for Reference:
                 content = msg.get('content', '')
                 conversation_context += f"{role.capitalize()}: {content}\n\n"
         
-        prompt = f"""You are a farming expert that has knowledge about crop planting and agricultural practices. You understand every language.
-        You are having a conversation with a farmer.
-        You are to provide a response to the farmer in a VERY concise, friendly and easy to understand manner.
-        The response MUST ONLY be in the following language: {"hindi" if language == "hi" else language}.
+        prompt = f"""
+            You are a farming expert that has knowledge about crop planting and agricultural practices. You understand every language.
+            You are having a conversation with a farmer.
+            You are to provide a response to the farmer in a VERY concise, friendly and easy to understand manner.
+            The response MUST ONLY be in the following language: {"hindi" if language == "hi" else language}.
+            
+            Here is the conversation history:
+            {conversation_context}
+            
+            Please provide a helpful response to the farmer's latest message, taking into account the conversation context.
+            """
         
-        Here is the conversation history:
-        {conversation_context}
-        
-        Please provide a helpful response to the farmer's latest message, taking into account the conversation context.
-        """
-        
-        response = self.client.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=[prompt]
         )
         return response.text
     
-    #stt
+
     def speech_to_text(self, audio_bytes: bytes, language: str = "en") -> str:
         """convert speech to text using deepgram STT."""
         payload: FileSource = {
@@ -118,19 +118,37 @@ Model Results for Reference:
         data = response.results.channels[0].alternatives[0].transcript
         return data
     
-    #tts
-    def text_to_speech(self, text: str, model: str = "aura-2-thalia-en") -> bytes:
-        """convert text to speech audio using deepgram TTS."""
-        headers = {
-            "Authorization": f"Token {self.deepgram_api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {"text": text}
-        resp = requests.post(f"{self.tts_url}?model={model}", headers=headers, json=payload)
-        resp.raise_for_status()
-        return resp.content
+
+    async def text_to_speech(self, text: str) -> bytes:
+        """Converts text to speech audio using gemini TTS, returns the file path of the saved audio"""
+        response = await self.client.aio.models.generate_content(
+            model="gemini-2.5-flash-preview-tts",
+            contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name='Kore',
+                        )
+                    )
+                ),
+            )
+        )
+        data = response.candidates[0].content.parts[0].inline_data.data
+        file_name = f"{str(uuid.uuid4())}.wav"
+
+        def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
+            with wave.open(filename, "wb") as wf:
+                wf.setnchannels(channels)
+                wf.setsampwidth(sample_width)
+                wf.setframerate(rate)
+                wf.writeframes(pcm)
+        wave_file(file_name, data)
+
+        return file_name
     
-    def voice_chat(self, audio_bytes: bytes, user_id: str, language: str="en"):
+    async def voice_chat(self, audio_bytes: bytes, user_id: str, language: str="en"):
         """chat using voice input and output."""
         user_text = self.speech_to_text(audio_bytes, language)
         user_message = {
@@ -139,20 +157,13 @@ Model Results for Reference:
         }
         self.redis_client.add_message(user_id, user_message)
         history = self.redis_client.get_recent_messages(user_id, limit=10)
-        reply_text = self.chat(history, language)
+        reply_text = await self.chat(history, language)
 
         assistant_message = {
             "role": "assistant",
             "content": reply_text
         }
         self.redis_client.add_message(user_id, assistant_message)
-
-        # reply_audio = self.text_to_speech(reply_text)
-
-        #saving audio to supabase
-        # user_audio_url= audio_to_supabase(audio_bytes, f"{user_id}_input_{int(time.time())}.wav", mimetype)
-        # bot_audio_url = audio_to_supabase(reply_audio, f"{user_id}_reply_{int(time.time())}.mp3", "audio/mpeg")
-
 
         return{
             "user_query": user_text,
@@ -161,7 +172,7 @@ Model Results for Reference:
             "bot_audio_url": None,
         }
 
-    def create_notification_message(self, alert_data: dict, language: str = "en"):
+    async def create_notification_message(self, alert_data: dict, language: str = "en"):
         """
         Create a notification message from the alert data.
         """
@@ -172,13 +183,13 @@ Model Results for Reference:
         The alert data is as follows:
         {alert_data}
         """
-        response = self.client.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model="gemini-2.0-flash",
             contents=[prompt]
         )
         return response.text
 
-    def translate_market_data(self, records: list, language: str = "hindi"):
+    async def translate_market_data(self, records: dict, language: str = "hindi"):
         """
         Translate market data records to the given language.
         """
@@ -202,7 +213,7 @@ Model Results for Reference:
         """
         
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model="gemini-2.0-flash",
                 contents=[prompt]
             )
@@ -227,7 +238,7 @@ Model Results for Reference:
             # Return original records if any error occurs
             return records
 
-    def translate_weather_data(self, weather_data: dict, language: str = "hindi"):
+    async def translate_weather_data(self, weather_data: dict, language: str = "hindi"):
         """
         Translate weather data to the given language.
         """
@@ -241,7 +252,7 @@ Model Results for Reference:
         {json.dumps(weather_data, ensure_ascii=False)}
         """
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model="gemini-2.0-flash",
                     contents=[prompt]
                 )
@@ -258,7 +269,7 @@ Model Results for Reference:
             print(f"Translation error: {e}")
             return weather_data
         
-    def translate_content(self, content: str, language: str = "hindi"):
+    async def translate_content(self, content: str, language: str = "hindi"):
         """
         Translate content to the given language.
         """
@@ -271,7 +282,7 @@ Model Results for Reference:
         {content}
         """
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model="gemini-2.0-flash",
                 contents=[prompt]
             )

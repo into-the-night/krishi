@@ -1,7 +1,8 @@
+import httpx
 from celery import Celery
 from celery.schedules import crontab
-import httpx
 from firebase_admin import messaging
+
 from agent.bot import Bot
 from config.settings import settings
 from lib.db import get_all_locations

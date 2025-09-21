@@ -1,23 +1,26 @@
-from fastapi import APIRouter, HTTPException, Depends
 import httpx
-from lib.db import get_farms, get_farmer, get_supabase
-from supabase import AsyncClient
 from typing import Dict, Any
-from config.settings import settings
+from fastapi import APIRouter, HTTPException
+
 from agent.bot import Bot
+from config.settings import settings
+from lib.db import get_farms, get_farmer
 
 router = APIRouter(prefix="/weather", tags=["weather"])
 bot = Bot()
 
 @router.get("/get")
-async def get_weather(farmer_id: str, supabase: AsyncClient = Depends(get_supabase)) -> Dict[str, Any]:
+async def get_weather(farmer_id: str) -> Dict[str, Any]:
     """Get weather data for a user"""
+
     farmer = await get_farmer(farmer_id)
     if not farmer:
         raise HTTPException(status_code=404, detail="Farmer not found")
+    
     farms = await get_farms(farmer_id)
     if not farms:
         raise HTTPException(status_code=404, detail="Farms not found")
+    
     weather_data = {}
 
     for farm in farms:
@@ -80,7 +83,7 @@ async def get_weather(farmer_id: str, supabase: AsyncClient = Depends(get_supaba
                 ]
             }
             if farmer.language != "en":
-                farm_weather_data = bot.translate_weather_data(farm_weather_data, language=farmer.language)
+                farm_weather_data = await bot.translate_weather_data(farm_weather_data, language=farmer.language)
             
             weather_data[farm.farm_name] = farm_weather_data
 

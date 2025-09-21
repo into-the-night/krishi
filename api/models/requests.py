@@ -17,6 +17,12 @@ class ChatRequest(BaseModel):
     language: str = "en"
     user_id: str
 
+class TTSRequest(BaseModel):
+    user_id: str
+    message_id: str
+    message: str
+    language: str = "en"
+
 class CreateFarmerRequest(BaseModel):
     name: str
     mobile_no: str

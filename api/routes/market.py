@@ -1,15 +1,16 @@
+import requests
 from fastapi import APIRouter
+
+from agent.bot import Bot
+from config.settings import settings
 from api.models.requests import MarketDataRequest
 from api.models.responses import MarketDataResponse
-from agent.bot import Bot
-import requests
-from config.settings import settings
 
 router = APIRouter(prefix="/market", tags=["market"])
 bot = Bot()
 
 @router.post("/get")
-def get_market_data(request: MarketDataRequest):
+async def get_market_data(request: MarketDataRequest):
     base_url = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
     params = {
         "api-key": settings.ogd_api_key,
@@ -45,7 +46,7 @@ def get_market_data(request: MarketDataRequest):
         
         # Translate if needed
         if request.language != "en":
-            records = bot.translate_market_data(records, request.language)
+            records = await bot.translate_market_data(records, request.language)
         
         return MarketDataResponse(
             status="success",

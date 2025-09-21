@@ -1,13 +1,15 @@
-from fastapi import APIRouter, File, UploadFile, Form
+import os
+import uuid
+import asyncio
+import tempfile
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 from inference_sdk import InferenceHTTPClient
-from config.settings import settings
+
 from agent.bot import Bot
 from lib.redis import Redis
 from lib.db import save_to_supabase
+from config.settings import settings
 from api.models.responses import ImageDetectionResponse
-import tempfile
-import uuid
-import os
 
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
@@ -36,7 +38,7 @@ async def image_detection(
     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
         tmp_file.write(image_content)
         tmp_file_path = tmp_file.name
-    
+
     try:
         # Run the workflow with the file path
         result = client.run_workflow(
@@ -49,11 +51,11 @@ async def image_detection(
         )
 
         # Analyse the output
-        analysis = bot.analyse_output(result, tmp_file_path, language)
+        analysis = await bot.analyse_output(result, tmp_file_path, language)
 
         # Upload image to Supabase using a valid key
         file_id = f"uploads/{user_id}_{uuid.uuid4()}{file_extension}"
-        response = save_to_supabase(tmp_file_path, file_id, content_type="image/jpeg")
+        response = await save_to_supabase(tmp_file_path, file_id, content_type="image/jpeg")
 
         if response:
             user_message = {

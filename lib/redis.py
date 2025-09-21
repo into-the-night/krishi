@@ -1,7 +1,8 @@
-import redis
+import uuid
 import json
-from typing import List, Dict, Optional
+import redis
 from datetime import datetime
+from typing import List, Dict, Optional
 
 class Redis:
     def __init__(self):
@@ -13,17 +14,21 @@ class Redis:
         )
 
     def add_message(self, user_id: str, message: Dict) -> None:
-        """Add a message to user's chat history"""
+        """Add a message(s) to user's chat history"""
         now = datetime.utcnow().isoformat()
         # Get existing history
         history = self.get_chat_history(user_id)
         
         if isinstance(message, list):
             for msg in message:
+                if 'id' not in msg:
+                    msg['id'] = str(uuid.uuid4())
                 if 'timestamp' not in msg:
                     msg['timestamp'] = now
             history.extend(message)
         else:
+            if 'id' not in message:
+                message['id'] = str(uuid.uuid4())
             if 'timestamp' not in message:
                 message['timestamp'] = now
             history.append(message)

@@ -49,3 +49,12 @@ class Comment(BaseModel):
     content: str
     likes: int
     created_at: datetime
+
+class Message(BaseModel):
+    id: str
+    user_id: str
+    message_id: str
+    role: str
+    content: str
+    content_type: str
+    created_at: datetime

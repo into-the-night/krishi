@@ -1,5 +1,6 @@
 import firebase_admin
 from firebase_admin import credentials, messaging
+
 from config.settings import settings
 
 cred = credentials.Certificate(settings.firebase_credentials_path)

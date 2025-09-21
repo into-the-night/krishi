@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+
 from lib.db import create_farmer, get_farmer, update_farmer
 from api.models.requests import CreateFarmerRequest, UpdateFarmerRequest
 from api.models.responses import FarmerResponse

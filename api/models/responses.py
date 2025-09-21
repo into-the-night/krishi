@@ -104,6 +104,7 @@ class ChatMessageResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     """Individual chat message"""
+    # id: str
     role: str
     content: str
     timestamp: Optional[datetime] = None
@@ -118,6 +119,10 @@ class ChatClearResponse(BaseResponse):
     """Response for clearing chat history"""
     user_id: str
     message: str = "Chat history cleared successfully"
+
+class TTSResponse(BaseModel):
+    """Response for TTS"""
+    audio_url: str
 
 # Market data response models
 class MarketRecord(BaseModel):
